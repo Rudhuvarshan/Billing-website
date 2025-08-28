@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { addProduct, getAllProducts } = require('../controllers/productController');
+const { addProduct, getAllProducts, getProductByNumber } = require('../controllers/productController');
 
-// This line defines the POST method for the '/add' path
-router.post('/add', addProduct); // <--- CHECK THIS LINE
+// POST /api/products/add
+router.post('/add', addProduct);
 
-// This line defines the GET method for the '/all' path
+// GET /api/products/all
 router.get('/all', getAllProducts);
+
+// GET /api/products/:productNumber
+// The ":" makes "productNumber" a URL parameter
+router.get('/:productNumber', getProductByNumber); // <-- ADD THIS NEW ROUTE
 
 module.exports = router;

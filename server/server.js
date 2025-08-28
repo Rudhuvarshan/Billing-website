@@ -5,7 +5,8 @@ const connectDB = require('./config/db');
 
 // Import route files
 const authRoutes = require('./routes/authRoutes');
-const productRoutes = require('./routes/productRoutes'); // <--- CHECK THIS LINE
+const productRoutes = require('./routes/productRoutes');
+const billRoutes = require('./routes/billRoutes'); // <-- ADD THIS LINE
 
 // Load environment variables from .env file
 dotenv.config();
@@ -27,7 +28,8 @@ app.get('/', (req, res) => {
 
 // Use the routes
 app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes); // <--- AND CHECK THIS LINE
+app.use('/api/products', productRoutes);
+app.use('/api/bills', billRoutes); // <-- ADD THIS LINE
 
 // Define the port
 const PORT = process.env.PORT || 5000;
