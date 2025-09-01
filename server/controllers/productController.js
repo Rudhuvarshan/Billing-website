@@ -1,42 +1,47 @@
 const Product = require('../models/Product');
 
-// @desc    Add a new product
-// @route   POST /api/products/add
+// ... addProduct, getAllProducts, getProductByNumber, updateProduct functions are the same ...
 const addProduct = async (req, res) => {
+  const { productNumber, name, price, discountPercentage, gstPercentage } = req.body;
   try {
-    const { productNumber, name, price, discountPercentage, gstPercentage } = req.body;
-    if (!productNumber || !name || !price) {
-      return res.status(400).json({ message: 'Please provide product number, name, and price' });
-    }
     const productExists = await Product.findOne({ productNumber });
-    if (productExists) {
-      return res.status(400).json({ message: 'Product with this number already exists' });
-    }
+    if (productExists) { return res.status(400).json({ message: 'Product with this number already exists' }); }
     const product = await Product.create({ productNumber, name, price, discountPercentage, gstPercentage });
-    res.status(201).json(product);
-  } catch (error) {
-    res.status(500).json({ message: `Server Error: ${error.message}` });
-  }
+    if (product) { res.status(201).json(product); } else { res.status(400).json({ message: 'Invalid product data' }); }
+  } catch (error) { res.status(500).json({ message: `Server Error: ${error.message}` }); }
 };
-
-// @desc    Get all products
-// @route   GET /api/products/all
 const getAllProducts = async (req, res) => {
-  try {
-    const products = await Product.find({});
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ message: `Server Error: ${error.message}` });
-  }
+  try { const products = await Product.find({}).sort({ createdAt: -1 }); res.json(products); } catch (error) { res.status(500).json({ message: `Server Error: ${error.message}` }); }
 };
-
-// @desc    Get a single product by its number
-// @route   GET /api/products/:productNumber
 const getProductByNumber = async (req, res) => {
   try {
-    const product = await Product.findOne({ productNumber: req.params.productNumber });
+    const product = await Product.findOne({ productNumber: req.params.productNumber.toUpperCase() });
+    if (product) { res.json(product); } else { res.status(404).json({ message: 'Product not found' }); }
+  } catch (error) { res.status(500).json({ message: `Server Error: ${error.message}` }); }
+};
+const updateProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
     if (product) {
-      res.json(product);
+      product.name = req.body.name || product.name;
+      product.price = req.body.price || product.price;
+      product.discountPercentage = req.body.discountPercentage ?? product.discountPercentage;
+      product.gstPercentage = req.body.gstPercentage ?? product.gstPercentage;
+      const updatedProduct = await product.save();
+      res.json(updatedProduct);
+    } else { res.status(404).json({ message: 'Product not found' }); }
+  } catch (error) { res.status(500).json({ message: `Server Error: ${error.message}` }); }
+};
+
+// @desc    Delete a product
+// @route   DELETE /api/products/:id
+const deleteProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (product) {
+      await product.deleteOne();
+      res.json({ message: 'Product removed' });
     } else {
       res.status(404).json({ message: 'Product not found' });
     }
@@ -45,9 +50,10 @@ const getProductByNumber = async (req, res) => {
   }
 };
 
-
 module.exports = {
   addProduct,
   getAllProducts,
-  getProductByNumber, // <-- Make sure to export the new function
+  getProductByNumber,
+  updateProduct,
+  deleteProduct, // <-- Export the new function
 };

@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { createBill, getBillHistory } = require('../controllers/billController');
 
-// Define the route for creating a bill
-// This will correspond to the URL: POST /api/bills/create
+// @route   POST /api/bills/create
+// @desc    Create a new bill
 router.post('/create', createBill);
 
-// Define the route for getting the bill history
-// This will correspond to the URL: GET /api/bills/history
+// @route   GET /api/bills/history
+// @desc    Get all bills for the history page
 router.get('/history', getBillHistory);
+
 
 module.exports = router;

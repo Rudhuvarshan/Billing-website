@@ -1,61 +1,63 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- CHANGED IMPORT
+import autoTable from 'jspdf-autotable'; // <-- CHANGE 1: Import the function directly
 
-export const downloadBillPDF = (billData) => {
+const generateBillPDF = (billDetails) => {
   const doc = new jsPDF();
-  
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  doc.text("INVOICE", 105, 20, null, null, "center");
 
+  // Header
+  doc.setFontSize(20);
+  doc.text('Invoice', 105, 20, null, null, 'center');
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text("Your Store Name", 20, 35);
-  doc.text("Your Store Address, City", 20, 42);
+  doc.text(`Bill ID: ${billDetails._id}`, 14, 30);
+  doc.text(`Date: ${new Date(billDetails.createdAt).toLocaleString('en-IN')}`, 14, 36);
 
-  doc.text(`Bill To: ${billData.customerName}`, 20, 55);
-  doc.text(`Contact: ${billData.customerNumber}`, 20, 62);
-  
-  doc.text(`Date: ${new Date().toLocaleDateString()}`, 190, 55, null, null, "right");
-  
-  const tableColumns = ["#", "Item Name", "Qty", "Price", "Total"];
+  // Customer Details
+  doc.setFontSize(14);
+  doc.text('Bill To:', 14, 50);
+  doc.setFontSize(12);
+  doc.text(`Customer Name: ${billDetails.customerName}`, 14, 56);
+  doc.text(`Phone Number: ${billDetails.customerNumber}`, 14, 62);
+
+  // Items Table
+  const tableColumn = ["S.No.", "Product Name", "Qty", "Price", "Discount (%)", "GST (%)", "Total"];
   const tableRows = [];
 
-  billData.items.forEach((item, index) => {
+  billDetails.items.forEach((item, index) => {
     const itemData = [
       index + 1,
       item.name,
       item.quantity,
-      `₹${item.price.toFixed(2)}`,
-      `₹${(item.price * item.quantity).toFixed(2)}`,
+      `Rs. ${item.price.toFixed(2)}`,
+      `${item.discountPercentage}%`,
+      `${item.gstPercentage}%`,
+      `Rs. ${(item.price * item.quantity).toFixed(2)}`
     ];
     tableRows.push(itemData);
   });
 
-  // Call autoTable as a function, passing the doc object
-  autoTable(doc, { // <-- CHANGED HOW WE CALL THE FUNCTION
-    head: [tableColumns],
+  // <-- CHANGE 2: Call autoTable as a function, passing the doc
+  autoTable(doc, {
+    head: [tableColumn],
     body: tableRows,
-    startY: 75 
+    startY: 70,
   });
-  
-  const finalY = doc.lastAutoTable.finalY;
-  doc.setFontSize(12);
-  doc.text(`Subtotal:`, 150, finalY + 10, null, null, "right");
-  doc.text(`₹${billData.subTotal.toFixed(2)}`, 190, finalY + 10, null, null, "right");
-  
-  doc.text(`Discount:`, 150, finalY + 17, null, null, "right");
-  doc.text(`- ₹${billData.totalDiscountValue.toFixed(2)}`, 190, finalY + 17, null, null, "right");
 
-  doc.text(`GST:`, 150, finalY + 24, null, null, "right");
-  doc.text(`+ ₹${billData.totalGstValue.toFixed(2)}`, 190, finalY + 24, null, null, "right");
-  
+  // Totals Section
+  const finalY = doc.lastAutoTable.finalY; // <-- CHANGE 3: Get Y position correctly
+  doc.setFontSize(12);
+  doc.text(`Sub Total: Rs. ${billDetails.subTotal.toFixed(2)}`, 14, finalY + 10);
+  doc.text(`Total Discount: - Rs. ${billDetails.totalDiscountValue.toFixed(2)}`, 14, finalY + 16);
+  doc.text(`Total GST: + Rs. ${billDetails.totalGstValue.toFixed(2)}`, 14, finalY + 22);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Grand Total:`, 150, finalY + 31, null, null, "right");
-  doc.text(`₹${billData.grandTotal.toFixed(2)}`, 190, finalY + 31, null, null, "right");
+  doc.text(`Grand Total: Rs. ${billDetails.grandTotal.toFixed(2)}`, 14, finalY + 30);
 
-  doc.text("Thank you for your purchase!", 105, finalY + 50, null, null, "center");
+  // Footer
+  doc.setFontSize(10);
+  doc.text('Thank you for your business!', 105, finalY + 50, null, null, 'center');
 
-  doc.save(`Bill-${billData.customerName.replace(" ", "_")}.pdf`);
+  // Save the PDF
+  doc.save(`invoice-${billDetails._id}.pdf`);
 };
+
+export default generateBillPDF;

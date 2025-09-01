@@ -3,28 +3,30 @@ const mongoose = require('mongoose');
 const productSchema = new mongoose.Schema({
   productNumber: {
     type: String,
-    required: true,
-    unique: true, // This is the ID you will type to find a product
+    required: [true, 'Please add a product number'],
+    unique: true,
+    uppercase: true,
+    trim: true,
   },
   name: {
     type: String,
-    required: true,
+    required: [true, 'Please add a product name'],
+    trim: true,
   },
   price: {
     type: Number,
-    required: true,
+    required: [true, 'Please add a price'],
   },
   discountPercentage: {
     type: Number,
-    default: 0, // Defaults to 0 if not provided
+    default: 0,
   },
   gstPercentage: {
     type: Number,
-    default: 0, // Defaults to 0 if not provided
+    default: 0,
   },
 }, {
-  timestamps: true,
+  timestamps: true
 });
 
-const Product = mongoose.model('Product', productSchema);
-module.exports = Product;
+module.exports = mongoose.model('Product', productSchema);

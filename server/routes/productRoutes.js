@@ -1,15 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { addProduct, getAllProducts, getProductByNumber } = require('../controllers/productController');
+const {
+  addProduct,
+  getAllProducts,
+  getProductByNumber,
+  updateProduct,
+  deleteProduct, // <-- Import the new function
+} = require('../controllers/productController');
 
-// POST /api/products/add
 router.post('/add', addProduct);
-
-// GET /api/products/all
 router.get('/all', getAllProducts);
-
-// GET /api/products/:productNumber
-// The ":" makes "productNumber" a URL parameter
-router.get('/:productNumber', getProductByNumber); // <-- ADD THIS NEW ROUTE
+router.get('/:productNumber', getProductByNumber);
+router.put('/:id', updateProduct);
+router.delete('/:id', deleteProduct); // <-- Add the new DELETE route
 
 module.exports = router;

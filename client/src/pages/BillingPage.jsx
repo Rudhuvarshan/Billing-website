@@ -1,161 +1,56 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
-import { Container, Box, Typography, Grid, Paper, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Divider } from '@mui/material';
+import { toast } from 'react-toastify';
+import { Container, Typography, Box, Paper, Grid, TextField, Autocomplete, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Button, Link } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { downloadBillPDF } from '../utils/generateBillPDF';
-import BackToHomeButton from '../components/BackToHomeButton';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import generateBillPDF from '../utils/generateBillPDF'; // <-- IMPORT THE PDF GENERATOR
 
 const BillingPage = () => {
-  const navigate = useNavigate();
+  // ... All the state and functions from the previous step are the same ...
+  const [allProducts, setAllProducts] = useState([]);
   const [customerName, setCustomerName] = useState('');
   const [customerNumber, setCustomerNumber] = useState('');
-  const [productNumberInput, setProductNumberInput] = useState('');
-  const [foundProduct, setFoundProduct] = useState(null);
-  const [quantityInput, setQuantityInput] = useState(1);
   const [billItems, setBillItems] = useState([]);
-  const [totals, setTotals] = useState({ subTotal: 0, discount: 0, gst: 0, grandTotal: 0 });
+  const [subTotal, setSubTotal] = useState(0);
+  const [totalDiscount, setTotalDiscount] = useState(0);
+  const [totalGst, setTotalGst] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
 
-  useEffect(() => {
-    let subTotal = 0, totalDiscount = 0, totalGst = 0;
-    billItems.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      subTotal += itemTotal;
-      const itemDiscount = itemTotal * (item.discountPercentage / 100);
-      totalDiscount += itemDiscount;
-      const priceAfterDiscount = itemTotal - itemDiscount;
-      totalGst += priceAfterDiscount * (item.gstPercentage / 100);
-    });
-    const grandTotal = subTotal - totalDiscount + totalGst;
-    setTotals({ subTotal, discount: totalDiscount, gst: totalGst, grandTotal });
-  }, [billItems]);
+  useEffect(() => { const fetchAllProducts = async () => { try { const { data } = await axios.get('http://localhost:5000/api/products/all'); setAllProducts(data); } catch (error) { console.error('Failed to fetch products', error); } }; fetchAllProducts(); }, []);
+  const calculateTotals = useCallback(() => { let sub = 0, discount = 0, gst = 0; billItems.forEach(item => { const iTotal = item.price * item.quantity; sub += iTotal; discount += iTotal * (item.discountPercentage / 100); gst += (iTotal - (iTotal * (item.discountPercentage / 100))) * (item.gstPercentage / 100); }); setSubTotal(sub); setTotalDiscount(discount); setTotalGst(gst); setGrandTotal(sub - discount + gst); }, [billItems]);
+  useEffect(() => { calculateTotals(); }, [billItems, calculateTotals]);
 
-  const handleFindProduct = async () => {
-    if (!productNumberInput) return alert('Please enter a product number.');
-    try {
-      const { data } = await axios.get(`http://localhost:5000/api/products/${productNumberInput}`);
-      setFoundProduct(data);
-    } catch (error) {
-      setFoundProduct(null);
-      alert('Product not found.');
-    }
-  };
+  const handleProductSelect = (event, selectedProduct) => { if (selectedProduct) { const isAlreadyInBill = billItems.some(item => item._id === selectedProduct._id); if (isAlreadyInBill) return; const newItem = { ...selectedProduct, quantity: 1 }; setBillItems([...billItems, newItem]); } };
+  const handleQuantityChange = (productId, newQuantity) => { const updatedItems = billItems.map(item => item._id === productId ? { ...item, quantity: Math.max(1, newQuantity) } : item); setBillItems(updatedItems); };
+  const handleRemoveItem = (productId) => { setBillItems(billItems.filter(item => item._id !== productId)); };
+  const resetBillingPage = () => { setCustomerName(''); setCustomerNumber(''); setBillItems([]); };
 
-  const handleAddItemToBill = () => {
-    if (!foundProduct) return alert('Please find a product first.');
-    if (quantityInput <= 0) return alert('Quantity must be at least 1.');
-    const newItem = { ...foundProduct, quantity: quantityInput };
-    setBillItems(prevItems => [...prevItems, newItem]);
-    setProductNumberInput('');
-    setFoundProduct(null);
-    setQuantityInput(1);
-  };
-
-  const handleRemoveItem = (indexToRemove) => {
-    setBillItems(prevItems => prevItems.filter((_, index) => index !== indexToRemove));
-  };
-  
-  const resetBillingPage = () => {
-    setCustomerName(''); setCustomerNumber(''); setBillItems([]);
-    setProductNumberInput(''); setFoundProduct(null); setQuantityInput(1);
-  };
-  
   const handleGenerateBill = async () => {
-    if (!customerName || !customerNumber) return alert('Please enter customer name and number.');
-    if (billItems.length === 0) return alert('Please add at least one item to the bill.');
+    if (!customerName.trim() || !customerNumber.trim()) { return toast.error('Please enter customer name and phone number.'); }
+    if (billItems.length === 0) { return toast.error('Please add at least one item to the bill.'); }
 
-    const billData = {
-      customerName, customerNumber,
-      items: billItems.map(({ _id, name, quantity, price, discountPercentage, gstPercentage, productNumber }) => ({ productId: _id, name, quantity, price, discountPercentage, gstPercentage, productNumber })),
-      subTotal: totals.subTotal, totalDiscountValue: totals.discount,
-      totalGstValue: totals.gst, grandTotal: totals.grandTotal,
-    };
+    const billData = { customerName, customerNumber, items: billItems.map(item => ({ productId: item._id, productNumber: item.productNumber, name: item.name, quantity: item.quantity, price: item.price, discountPercentage: item.discountPercentage, gstPercentage: item.gstPercentage, })), subTotal, totalDiscountValue: totalDiscount, totalGstValue: totalGst, grandTotal, };
 
     try {
-      await axios.post('http://localhost:5000/api/bills/create', billData);
-      downloadBillPDF(billData);
-      alert('Bill generated and saved successfully!');
+      const { data: savedBill } = await axios.post('http://localhost:5000/api/bills/create', billData);
+      
+      toast.success('Bill generated successfully!');
+      
+      // --- CALL THE PDF GENERATOR HERE ---
+      generateBillPDF(savedBill);
+      // ------------------------------------
+
       resetBillingPage();
     } catch (error) {
-      console.error('Failed to generate bill:', error);
-      alert('Failed to generate bill. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to generate bill.');
     }
   };
 
   return (
-    <Box sx={{ flexGrow: 1, padding: 4, backgroundColor: '#f4f6f8', minHeight: '100vh' }}>
-      <Container maxWidth="xl">
-        <BackToHomeButton />
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: '#1a237e', mt: 2 }}>
-          Billing
-        </Typography>
-        <Grid container spacing={4}>
-          <Grid xs={12} md={5}>
-            <Paper elevation={3} sx={{ padding: 3 }}>
-              <Typography variant="h6" gutterBottom>Customer Details</Typography>
-              <TextField label="Customer Name" fullWidth margin="normal" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-              <TextField label="Customer Number" fullWidth margin="normal" value={customerNumber} onChange={(e) => setCustomerNumber(e.target.value)} />
-              <Divider sx={{ my: 3 }} />
-              <Typography variant="h6" gutterBottom>Add Item</Typography>
-              <TextField label="Enter Product Number" fullWidth margin="normal" value={productNumberInput} onChange={(e) => setProductNumberInput(e.target.value.toUpperCase())} />
-              <Button variant="contained" onClick={handleFindProduct} sx={{ mt: 1 }}>Find Product</Button>
-              {foundProduct && <Box sx={{ mt: 2, p: 2, border: '1px dashed grey', borderRadius: 2, backgroundColor: '#e3f2fd' }}><Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{foundProduct.name}</Typography><Typography variant="body2">Price: ₹{foundProduct.price.toFixed(2)}</Typography><Typography variant="body2">Discount: {foundProduct.discountPercentage}%</Typography></Box>}
-              <TextField label="Quantity" type="number" fullWidth margin="normal" value={quantityInput} onChange={(e) => setQuantityInput(parseInt(e.target.value))} InputProps={{ inputProps: { min: 1 } }} />
-              <Button variant="contained" color="secondary" onClick={handleAddItemToBill} sx={{ mt: 1 }} disabled={!foundProduct}>Add to Bill</Button>
-            </Paper>
-          </Grid>
-          <Grid xs={12} md={7}>
-            <Paper elevation={3} sx={{ padding: 3 }}>
-              <Typography variant="h6" gutterBottom>Current Bill</Typography>
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item</TableCell>
-                      <TableCell align="right">Qty</TableCell>
-                      <TableCell align="right">Price</TableCell>
-                      <TableCell align="right">Total</TableCell>
-                      <TableCell align="right">Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {billItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center">No items added yet</TableCell>
-                      </TableRow>
-                    ) : (
-                      billItems.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{item.name}</TableCell>
-                          <TableCell align="right">{item.quantity}</TableCell>
-                          <TableCell align="right">₹{item.price.toFixed(2)}</TableCell>
-                          <TableCell align="right">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
-                          <TableCell align="right">
-                            <IconButton color="error" onClick={() => handleRemoveItem(index)}>
-                              <DeleteIcon />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Divider sx={{ my: 3 }} />
-              <Box sx={{ pr: 2 }}>
-                  <Typography variant="h6" align="right">Subtotal: ₹{totals.subTotal.toFixed(2)}</Typography>
-                  <Typography variant="body1" align="right" color="textSecondary">Discount: - ₹{totals.discount.toFixed(2)}</Typography>
-                  <Typography variant="body1" align="right" color="textSecondary">GST: + ₹{totals.gst.toFixed(2)}</Typography>
-                  <Typography variant="h5" align="right" sx={{ mt: 2, fontWeight: 'bold' }}>Grand Total: ₹{totals.grandTotal.toFixed(2)}</Typography>
-              </Box>
-              <Button variant="contained" size="large" fullWidth onClick={handleGenerateBill} sx={{ mt: 3 }}>
-                Generate Bill & Download PDF
-              </Button>
-            </Paper>
-          </Grid>
-        </Grid>
-      </Container>
-    </Box>
+    // ... The JSX for the page is exactly the same as the previous step ...
+    <Box sx={{ flexGrow: 1, p: 3, backgroundColor: '#f4f6f8', minHeight: '100vh' }}><Container maxWidth="xl"><Link component={RouterLink} to="/" sx={{ display: 'flex', alignItems: 'center', mb: 2 }}><ArrowBackIcon sx={{ mr: 1 }} /> Back to Dashboard</Link><Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>Create New Bill</Typography><Grid container spacing={3}><Grid item xs={12} md={8}><Paper sx={{ p: 2, mb: 2 }}><Grid container spacing={2}><Grid item xs={12} sm={6}><TextField label="Customer Name" fullWidth value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></Grid><Grid item xs={12} sm={6}><TextField label="Customer Phone Number" fullWidth value={customerNumber} onChange={(e) => setCustomerNumber(e.target.value)} /></Grid></Grid></Paper><Paper sx={{ p: 2 }}><Autocomplete options={allProducts} getOptionLabel={(option) => `${option.productNumber} - ${option.name}`} onChange={handleProductSelect} renderInput={(params) => <TextField {...params} label="Search and Add Product..." />} value={null} /><TableContainer sx={{ mt: 2 }}><Table><TableHead><TableRow><TableCell>Product</TableCell><TableCell align="center">Qty</TableCell><TableCell align="right">Price</TableCell><TableCell align="right">Total</TableCell><TableCell align="center">Action</TableCell></TableRow></TableHead><TableBody>{billItems.map(item => (<TableRow key={item._id}><TableCell>{item.name}</TableCell><TableCell align="center"><TextField type="number" value={item.quantity} onChange={(e) => handleQuantityChange(item._id, parseInt(e.target.value, 10))} sx={{ width: '80px' }} inputProps={{ min: 1 }} /></TableCell><TableCell align="right">₹{item.price.toFixed(2)}</TableCell><TableCell align="right">₹{(item.price * item.quantity).toFixed(2)}</TableCell><TableCell align="center"><IconButton onClick={() => handleRemoveItem(item._id)} color="error"><DeleteIcon /></IconButton></TableCell></TableRow>))}</TableBody></Table></TableContainer></Paper></Grid><Grid item xs={12} md={4}><Paper sx={{ p: 3 }}><Typography variant="h5" gutterBottom>Bill Summary</Typography><Box sx={{ display: 'flex', justifyContent: 'space-between', my: 1.5 }}><Typography>Sub Total:</Typography><Typography>₹{subTotal.toFixed(2)}</Typography></Box><Box sx={{ display: 'flex', justifyContent: 'space-between', my: 1.5, color: 'error.main' }}><Typography>Discount:</Typography><Typography>- ₹{totalDiscount.toFixed(2)}</Typography></Box><Box sx={{ display: 'flex', justifyContent: 'space-between', my: 1.5 }}><Typography>GST:</Typography><Typography>+ ₹{totalGst.toFixed(2)}</Typography></Box><hr /><Box sx={{ display: 'flex', justifyContent: 'space-between', my: 2 }}><Typography variant="h6">Grand Total:</Typography><Typography variant="h6">₹{grandTotal.toFixed(2)}</Typography></Box><Button onClick={handleGenerateBill} variant="contained" fullWidth size="large" sx={{ mt: 2 }}>Generate Bill</Button></Paper></Grid></Grid></Container></Box>
   );
 };
 

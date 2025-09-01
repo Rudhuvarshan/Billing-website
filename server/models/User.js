@@ -3,20 +3,24 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
+    required: [true, 'Please add a name'],
   },
   email: {
     type: String,
-    required: true,
-    unique: true, // No two users can have the same email
+    required: [true, 'Please add an email'],
+    unique: true,
+    match: [
+      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+      'Please add a valid email',
+    ],
   },
   password: {
     type: String,
-    required: true,
+    required: [true, 'Please add a password'],
+    minlength: 6,
   },
-}, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
+}, { 
+  timestamps: true 
 });
 
-const User = mongoose.model('User', userSchema);
-module.exports = User;
+module.exports = mongoose.model('User', userSchema);
